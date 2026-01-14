@@ -17,6 +17,7 @@
       padding: 12px 16px;
       border-radius: 12px;
       word-wrap: break-word;
+      white-space: pre-wrap;
     }
     .user-message {
       background-color: #3b82f6;
@@ -54,10 +55,34 @@
 </head>
 <body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen">
   <div class="w-full max-w-2xl p-4">
-    <h1 class="text-3xl font-bold text-center text-blue-400 mb-4">Gemini CLI Chat</h1>
+    <div class="mb-4 flex items-center justify-between">
+      <h1 class="text-3xl font-bold text-center text-blue-400">Gemini CLI Chat</h1>
+      <div class="flex items-center space-x-3">
+        <span id="current-model" class="text-sm text-gray-300">当前模型: loading...</span>
+        <label for="model-select" class="text-sm text-gray-300">切换模型：</label>
+        <select 
+          id="model-select"
+          class="bg-gray-700 text-white px-3 py-1.5 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="gemini-3-pro-preview">3 Pro</option>
+          <option value="gemini-3-flash-preview">3 Flash</option>
+          <option value="gemini-2.5-pro" selected>2.5 Pro</option>
+          <option value="gemini-2.5-flash" selected>2.5 Flash</option>
+          <option value="gemini-2.5-flash-lite" selected>2.5 Flash lite</option>
+        </select>
+        <button 
+          id="switch-model-btn"
+          class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm transition"
+        >
+          切换
+        </button>
+      </div>
+    </div>
+
     <div class="chat-container bg-gray-800 rounded-lg shadow-lg p-4 mb-4" id="chat-container">
       <div id="chat-messages"></div>
     </div>
+
     <div class="flex space-x-2">
       <input
         type="text"
@@ -85,14 +110,28 @@
   <script>
     const chatMessages = document.getElementById('chat-messages');
     const chatContainer = document.getElementById('chat-container');
+    const currentModelSpan = document.getElementById('current-model');
     const conversations = []; // 存储对话历史
+
+    async function loadCurrentModel() {
+      try {
+        const response = await fetch('/api/current-model');
+        const data = await response.json();
+        currentModelSpan.textContent = `当前模型: ${data.currentModel}`;
+      } catch (error) {
+        currentModelSpan.textContent = `当前模型: 加载失败 - ${error.message}`;
+      }
+    }
+
+    // 页面加载时获取当前模型
+    loadCurrentModel();
 
     function addMessage(content, isUser = false, isError = false) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `chat-message ${isUser ? 'user-message' : isError ? 'error-message' : 'gemini-message'}`;
       messageDiv.textContent = content;
       chatMessages.appendChild(messageDiv);
-      chatContainer.scrollTop = chatContainer.scrollHeight; // 滚动到底部
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     async function sendRequest() {
@@ -105,7 +144,6 @@
         return;
       }
 
-      // 添加用户消息
       addMessage(userInput, true);
       conversations.push({ role: 'user', content: userInput });
       input.value = '';
@@ -122,7 +160,6 @@
         const data = await response.json();
         console.log('Received response:', data);
 
-        // 移除加载消息
         chatMessages.lastChild.remove();
 
         if (data.response) {
@@ -145,6 +182,38 @@
       conversations.length = 0;
       chatMessages.innerHTML = '';
     }
+
+    // 切换模型
+    document.getElementById('switch-model-btn').addEventListener('click', async () => {
+      const model = document.getElementById('model-select').value;
+      const btn = document.getElementById('switch-model-btn');
+      btn.disabled = true;
+      btn.textContent = '切换中...';
+
+      try {
+        const response = await fetch('/api/switch-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          addMessage(`模型已切换至：${model}`, false);
+          addMessage(data.message || '切换成功', false);
+          // 切换成功后，更新前端显示
+          currentModelSpan.textContent = `当前模型: ${model}`;
+        } else {
+          addMessage(`切换失败：${data.error}`, false, true);
+        }
+      } catch (err) {
+        addMessage(`切换请求失败：${err.message}`, false, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '切换';
+      }
+    });
   </script>
 </body>
 </html>
