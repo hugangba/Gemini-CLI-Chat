@@ -31,7 +31,7 @@ const basicAuth = (req, res, next) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 };
-
+app.use(basicAuth);
 app.use(express.static('public'));
 app.use(express.json());
 app.use(cors());
